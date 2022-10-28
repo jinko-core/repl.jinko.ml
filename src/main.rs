@@ -1,52 +1,56 @@
+use jinko;
 use yew::prelude::*;
 
 enum Msg {
-    Update(String),
+    Update(Option<String>),
     Eval,
 }
 
 struct Model {
-    // `ComponentLink` is like a reference to a component.
-    // It can be used to send messages to the component
-    link: ComponentLink<Self>,
     input: String,
     output: Vec<String>,
+    jk_context: jinko::Context,
+}
+
+#[derive(Clone, Copy)]
+struct Reader;
+impl jinko::JkReader for Reader {
+    fn read_to_string(&self, path: &str) -> Result<String, jinko::Error> {
+        panic!("Read is not implemented, tried to be called on {}", path);
+    }
 }
 
 impl Component for Model {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_ctx: &Context<Self>) -> Self {
         Self {
-            link,
             input: String::new(),
             output: Vec::new(),
+            jk_context: jinko::Context::new(Box::new(Reader)),
         }
     }
 
-    fn update(&mut self, msg: Self::Message) -> ShouldRender {
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Update(content) => {
-                self.input = content;
+                match content {
+                    None => (),
+                    Some(content) => self.input = content,
+                }
                 false
-            },
+            }
             Msg::Eval => {
+                self.jk_context.eval(&self.input).unwrap();
                 self.output.push(self.input.clone() + "\n");
                 self.input.clear();
                 true
-            },
+            }
         }
     }
 
-    fn change(&mut self, _props: Self::Properties) -> ShouldRender {
-        // Should only return "true" if new properties are different to
-        // previously received properties.
-        // This component has no properties so we will always return "false".
-        false
-    }
-
-    fn view(&self) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <div>
                 <p style="border: 5px solid green;">
@@ -57,10 +61,10 @@ impl Component for Model {
                 </p>
 
                 <textarea
-                    oninput=self.link.callback(|event: InputData| Msg::Update(event.value))
+                    oninput={ctx.link().callback(|event: InputEvent| Msg::Update(event.data()))}
                     rows="1" cols="80">
                 </textarea>
-                <button onclick=self.link.callback(|_| Msg::Eval)>{ "eval" }</button>
+                <button onclick={ctx.link().callback(|_| Msg::Eval)}>{ "eval" }</button>
             </div>
         }
     }
