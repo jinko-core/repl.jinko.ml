@@ -2,7 +2,7 @@ use jinko;
 use yew::prelude::*;
 
 enum Msg {
-    Update(Option<String>),
+    Update(InputEvent),
     Eval,
 }
 
@@ -34,16 +34,31 @@ impl Component for Model {
 
     fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::Update(content) => {
-                match content {
-                    None => (),
-                    Some(content) => self.input = content,
+            Msg::Update(event) => {
+                match event.input_type().as_str() {
+                    "deleteContentBackward" => {
+                        self.input.pop();
+                    }
+                    "insertText" => {
+                        event.data().as_ref().map(|data| self.input.push_str(data));
+                    }
+                    "insertLineBreak" => self.input.push_str("\n"),
+                    &_ => unimplemented!("\"{}\" is not handled", event.input_type().as_str()),
                 }
+
+                log::debug!("New input {}", self.input);
                 false
             }
+
             Msg::Eval => {
-                self.jk_context.eval(&self.input).unwrap();
-                self.output.push(self.input.clone() + "\n");
+                log::debug!("{}", self.input);
+                self.jk_context.set_code(self.input.clone());
+                self.output.push(format!("> {}\n", self.input));
+                if let Ok(Some(res)) = self.jk_context.eval(&self.input) {
+                    self.output.push(format!("{:?}\n", res));
+                }
+
+                self.jk_context.clear_errors();
                 self.input.clear();
                 true
             }
@@ -61,8 +76,9 @@ impl Component for Model {
                 </p>
 
                 <textarea
-                    oninput={ctx.link().callback(|event: InputEvent| Msg::Update(event.data()))}
-                    rows="1" cols="80">
+                    oninput={ctx.link().callback(|event: InputEvent| Msg::Update(event))}
+                    value={""}
+                    rows="50" cols="80">
                 </textarea>
                 <button onclick={ctx.link().callback(|_| Msg::Eval)}>{ "eval" }</button>
             </div>
@@ -71,5 +87,6 @@ impl Component for Model {
 }
 
 fn main() {
-    yew::start_app::<Model>();
+    wasm_logger::init(wasm_logger::Config::default());
+     yew::Renderer::<Model>::new().render();
 }
